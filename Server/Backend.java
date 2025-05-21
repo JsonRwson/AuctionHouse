@@ -1,25 +1,25 @@
+import java.io.File;
 import java.io.FileOutputStream;
 
 // RMI registry packages
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 
 // Utils, hashmaps
+import java.security.*;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 // Security packages
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.SecureRandom;
-import java.security.Signature;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
+
 
 public class Backend implements Auction
 {
@@ -36,11 +36,10 @@ public class Backend implements Auction
 
     private int uniqueItemID;
     private int uniqueUserID;
-    
-    // Server public key stored in shared keys directory
+
     // Server private key stored in local server directory
     private static String privateKeyPath = "./serverKeyPriv.key";
-    private static String publicKeyPath = "../keys/serverKey.pub";
+    private static String publicKeyPath = "./serverKey.pub";
 
     public Backend(String passedID)
     {
@@ -57,20 +56,32 @@ public class Backend implements Auction
 
         try
         {
-            // Generate server key pair
-            KeyPair keyPair = generateKeyPair();
-            
-            // Store public key
-            storePublicKey(keyPair.getPublic(), publicKeyPath);
+            File privKeyFile = new File(privateKeyPath);
+            File pubKeyFile = new File(publicKeyPath);
 
-            // Store private key
-            storePrivateKey(keyPair.getPrivate(), privateKeyPath);
+            if (privKeyFile.exists() && pubKeyFile.exists())
+            {
+                // Load existing keys
+                this.serverPrivateKey = loadPrivateKey(privateKeyPath);
+                PublicKey publicKey = loadPublicKey(publicKeyPath);
+                System.out.println("Loaded existing RSA key pair.");
+            }
+            else
+            {
+                // Generate new key pair
+                KeyPair keyPair = generateKeyPair();
 
-            // Save private key for later use
-            this.serverPrivateKey = keyPair.getPrivate();
+                // Store keys
+                storePublicKey(keyPair.getPublic(), publicKeyPath);
+                storePrivateKey(keyPair.getPrivate(), privateKeyPath);
+
+                this.serverPrivateKey = keyPair.getPrivate();
+                System.out.println("Generated new RSA key pair.");
+            }
         }
-        catch (Exception e) {
-            System.err.println("Exception during key pair generation:");
+        catch (Exception e)
+        {
+            System.err.println("Exception during key pair loading/generation:");
             e.printStackTrace();
         }
     }
@@ -533,7 +544,8 @@ public class Backend implements Auction
             verifier.initVerify(userPublicKey);
             verifier.update(serverChallenge.getBytes());
 
-            if (!verifier.verify(signature)) {
+            if (!verifier.verify(signature))
+            {
                 System.out.println("Authentication failed for user: " + userID);
                 return null;
             }
@@ -561,6 +573,22 @@ public class Backend implements Auction
 
             return null;
         }
+    }
+
+    private PrivateKey loadPrivateKey(String filePath) throws Exception
+    {
+        byte[] keyBytes = Base64.getDecoder().decode(Files.readAllBytes(Paths.get(filePath)));
+        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+        KeyFactory kf = KeyFactory.getInstance("RSA");
+        return kf.generatePrivate(spec);
+    }
+
+    private PublicKey loadPublicKey(String filePath) throws Exception
+    {
+        byte[] keyBytes = Base64.getDecoder().decode(Files.readAllBytes(Paths.get(filePath)));
+        X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+        KeyFactory kf = KeyFactory.getInstance("RSA");
+        return kf.generatePublic(spec);
     }
 
     // Generate random token string

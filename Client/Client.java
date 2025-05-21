@@ -132,8 +132,8 @@ public class Client
             Registry registry = LocateRegistry.getRegistry("localhost");
             Auction server = (Auction) registry.lookup(serviceName);
 
-            String serverKeyFilePath = "../keys/serverKey.pub";
-            PublicKey serverPublicKey = getServerPublicKeyFromFile(serverKeyFilePath);    
+            String serverKeyFilePath = "./serverKey.pub";
+            PublicKey serverPublicKey = getServerPublicKeyFromFile(serverKeyFilePath);
 
             // Get or generate key pair for the client
             KeyPair keyPair = getOrGenerateKeyPair();
@@ -143,7 +143,7 @@ public class Client
             int userID = server.register(userEmail, clientPublicKey);
             System.out.println("Current UserID: " + userID + "\n");
 
-            // Perform 3-way authentication
+            // Perform 2-way authentication
             // Generate challenge string for server to sign, and recieve as challengeInfo object
             String challengeToUse = generateChallenge();
             ChallengeInfo challengeInfo = server.challenge(userID, challengeToUse);
